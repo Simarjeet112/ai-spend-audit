@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AuditReport {
+  id                String         @id @default(uuid())
+  shareSlug         String         @unique
+  companyName       String?
+  teamSize          Int
+  totalMonthlySpend Float
+  estimatedSavings  Float
+  aiSummary         String?
+  createdAt         DateTime       @default(now())
+
+  subscriptions     Subscription[]
+  lead              Lead?
+}
+
+model Subscription {
+  id              String      @id @default(uuid())
+  reportId        String
+  toolName        String
+  planName        String
+  seats           Int
+  monthlyPrice    Float
+  recommendation  String?
+  potentialSaving Float       @default(0)
+
+  report          AuditReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+}
+
+model Lead {
+  id        String      @id @default(uuid())
+  reportId  String      @unique
+  email     String
+  emailSent Boolean     @default(false)
+  createdAt DateTime    @default(now())
+
+  report    AuditReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+}
