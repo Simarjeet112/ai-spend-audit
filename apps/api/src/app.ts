@@ -3,13 +3,15 @@ import cors from "cors";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import auditRoutes from "./routes/audit.routes";
+import { errorHandler } from "./middleware/errorHandler";
+import { config } from "./config/env";
 
 const app = express();
 
 app.use(helmet());
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
+  origin: config.frontendUrl,
   credentials: true,
 }));
 
@@ -27,5 +29,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api", auditRoutes);
+
+app.use(errorHandler);
 
 export default app;
