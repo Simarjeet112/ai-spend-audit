@@ -88,7 +88,9 @@ export async function createAudit(req: Request, res: Response) {
 
 export async function getReport(req: Request, res: Response) {
   try {
-    const { slug } = req.params;
+    const slug = Array.isArray(req.params.slug)
+      ? req.params.slug[0]
+      : req.params.slug;
 
     if (!slug || slug.length > 20) {
       return res.status(400).json({ error: "Invalid slug" });

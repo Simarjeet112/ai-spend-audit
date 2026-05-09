@@ -8,12 +8,10 @@ type SummaryInput = {
   toolCount: number;
 };
 
-// Mock summary for when no API key is available
 function generateMockSummary(input: SummaryInput): string {
   const { companyName, teamSize, totalMonthlySpend, estimatedSavings, toolCount } = input;
   const name = companyName || "Your team";
   const savingPercent = Math.round((estimatedSavings / totalMonthlySpend) * 100);
-
   return `${name} is currently spending $${totalMonthlySpend}/month across ${toolCount} AI tools for ${teamSize} team members. Our audit identified $${estimatedSavings}/month in potential savings — that's ${savingPercent}% of your current spend, or $${estimatedSavings * 12}/year. The biggest opportunities are in right-sizing plans to match your actual team size rather than defaulting to business tiers.`;
 }
 
@@ -42,7 +40,7 @@ export async function generateSummary(input: SummaryInput): Promise<string> {
       }),
     });
 
-    const data = await response.json();
+    const data = await response.json() as { content: { text: string }[] };
     return data.content[0].text;
   } catch (error) {
     console.error("Summary generation error:", error);
