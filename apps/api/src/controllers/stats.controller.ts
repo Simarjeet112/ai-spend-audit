@@ -30,7 +30,7 @@ export async function getStats(_req: Request, res: Response) {
       totalAudits: totalReports,
       totalSavingsFound: Math.round(savingsAggregate._sum.estimatedSavings ?? 0),
       totalSpendAnalyzed: Math.round(savingsAggregate._sum.totalMonthlySpend ?? 0),
-      topOverspentTools: toolCounts.map((t) => ({
+      topOverspentTools: toolCounts.map((t: { toolName: string; _sum: { potentialSaving: number | null }; _count: { toolName: number } }) => ({
         tool: t.toolName,
         totalSaving: Math.round(t._sum.potentialSaving ?? 0),
         auditCount: t._count.toolName,
