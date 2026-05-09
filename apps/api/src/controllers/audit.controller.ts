@@ -2,18 +2,19 @@ import { Request, Response } from "express";
 import { runAudit } from "../services/audit.service";
 import { prisma } from "../lib/prisma";
 import { z } from "zod";
+import { sanitizeString } from "../utils/sanitize";
 
 const SubscriptionSchema = z.object({
-  toolName: z.string().min(1),
-  planName: z.string().min(1),
-  seats: z.number().int().positive(),
-  monthlyPrice: z.number().positive(),
+  toolName: z.string().min(1).max(100),
+  planName: z.string().min(1).max(100),
+  seats: z.number().int().positive().max(10000),
+  monthlyPrice: z.number().positive().max(1000000),
 });
 
 const AuditRequestSchema = z.object({
-  companyName: z.string().optional(),
-  teamSize: z.number().int().positive(),
-  subscriptions: z.array(SubscriptionSchema).min(1),
+  companyName: z.string().max(200).optional(),
+  teamSize: z.number().int().positive().max(100000),
+  subscriptions: z.array(SubscriptionSchema).min(1).max(20),
 });
 
 function generateSlug(): string {
@@ -33,12 +34,34 @@ export async function createAudit(req: Request, res: Response) {
 
     const { companyName, teamSize, subscriptions } = parsed.data;
 
-    const { results, totalMonthlySpend, estimatedSavings } = runAudit(subscriptions);
+    const sanitizedCompanyName = companyName
+      ? sanitizeString(companyName)
+      : undefined;
+
+    const sanitizedSubscriptions = subscriptions.map((s) => ({
+      ...s,
+      toolName: sanitizeString(s.toolName),
+      planName: sanitizeString(s.planName),
+    }));
+
+    const { results, totalMonthlySpend, estimatedSavings } =
+      runAudit(sanitizedSubscriptions);
+
+    let slug = generateSlug();
+    let attempts = 0;
+    while (attempts < 5) {
+      const existing = await prisma.auditReport.findUnique({
+        where: { shareSlug: slug },
+      });
+      if (!existing) break;
+      slug = generateSlug();
+      attempts++;
+    }
 
     const report = await prisma.auditReport.create({
       data: {
-        shareSlug: generateSlug(),
-        companyName,
+        shareSlug: slug,
+        companyName: sanitizedCompanyName,
         teamSize,
         totalMonthlySpend,
         estimatedSavings,
@@ -66,6 +89,10 @@ export async function createAudit(req: Request, res: Response) {
 export async function getReport(req: Request, res: Response) {
   try {
     const { slug } = req.params;
+
+    if (!slug || slug.length > 20) {
+      return res.status(400).json({ error: "Invalid slug" });
+    }
 
     const report = await prisma.auditReport.findUnique({
       where: { shareSlug: slug },

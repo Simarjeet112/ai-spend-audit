@@ -20,14 +20,16 @@ type AuditSummary = {
   estimatedSavings: number;
 };
 
-// Pricing data — hardcoded, deterministic, fully testable
-const PLAN_RULES: Record<string, (sub: Subscription) => { recommendation: string; saving: number }> = {
+type RuleResult = { recommendation: string; saving: number };
+type RuleFn = (sub: Subscription) => RuleResult;
+
+const PLAN_RULES: Record<string, RuleFn> = {
   chatgpt: (sub) => {
     if (sub.planName.toLowerCase().includes("team") && sub.seats <= 2) {
-      const saving = sub.monthlyPrice - 20;
+      const saving = Math.max(sub.monthlyPrice - 20, 0);
       return {
-        recommendation: `You have ${sub.seats} seats on ChatGPT Team ($25/seat). For ≤2 users, 2× ChatGPT Plus at $20/month total saves you $${saving}/month.`,
-        saving: Math.max(saving, 0),
+        recommendation: `You have ${sub.seats} seats on ChatGPT Team ($25/seat). For up to 2 users, 2x ChatGPT Plus at $20/month total saves you $${saving}/month.`,
+        saving,
       };
     }
     if (sub.planName.toLowerCase().includes("enterprise")) {
@@ -41,10 +43,10 @@ const PLAN_RULES: Record<string, (sub: Subscription) => { recommendation: string
 
   cursor: (sub) => {
     if (sub.planName.toLowerCase().includes("business") && sub.seats <= 5) {
-      const saving = sub.monthlyPrice - sub.seats * 20;
+      const saving = Math.max(sub.monthlyPrice - sub.seats * 20, 0);
       return {
-        recommendation: `Cursor Business at $40/seat is expensive for ${sub.seats} users. Cursor Pro at $20/seat saves $${Math.max(saving, 0)}/month.`,
-        saving: Math.max(saving, 0),
+        recommendation: `Cursor Business at $40/seat is expensive for ${sub.seats} users. Cursor Pro at $20/seat saves $${saving}/month.`,
+        saving,
       };
     }
     return { recommendation: "Plan looks appropriate for your team size.", saving: 0 };
@@ -63,10 +65,10 @@ const PLAN_RULES: Record<string, (sub: Subscription) => { recommendation: string
 
   claude: (sub) => {
     if (sub.planName.toLowerCase().includes("team") && sub.seats <= 3) {
-      const saving = sub.monthlyPrice - 60;
+      const saving = Math.max(sub.monthlyPrice - 60, 0);
       return {
-        recommendation: `Claude Team for ${sub.seats} users — consider individual Pro plans at $20/user which may be cheaper.`,
-        saving: Math.max(saving, 0),
+        recommendation: `Claude Team for ${sub.seats} users — individual Pro plans at $20/user may be cheaper.`,
+        saving,
       };
     }
     return { recommendation: "Plan looks appropriate for your team size.", saving: 0 };
@@ -74,9 +76,72 @@ const PLAN_RULES: Record<string, (sub: Subscription) => { recommendation: string
 
   gemini: (sub) => {
     if (sub.planName.toLowerCase().includes("business") && sub.seats <= 3) {
+      const saving = Math.max(sub.monthlyPrice - sub.seats * 20, 0);
       return {
-        recommendation: "Gemini Business for a small team — Gemini Advanced ($20/user) may cover your needs at lower cost.",
-        saving: Math.max(sub.monthlyPrice - sub.seats * 20, 0),
+        recommendation: `Gemini Business for a small team — Gemini Advanced ($20/user) may cover your needs at lower cost. Saves $${saving}/month.`,
+        saving,
+      };
+    }
+    return { recommendation: "Plan looks appropriate for your team size.", saving: 0 };
+  },
+
+  notion: (sub) => {
+    if (sub.planName.toLowerCase().includes("business") && sub.seats <= 5) {
+      const saving = (15 - 10) * sub.seats;
+      return {
+        recommendation: `Notion Business at $15/seat for ${sub.seats} users — Notion Plus at $10/seat has most features small teams need. Saves $${saving}/month.`,
+        saving,
+      };
+    }
+    if (sub.planName.toLowerCase().includes("enterprise") && sub.seats <= 10) {
+      const saving = Math.max(sub.monthlyPrice - sub.seats * 15, 0);
+      return {
+        recommendation: `Notion Enterprise for ${sub.seats} users is likely over-provisioned. Business plan covers most needs at lower cost.`,
+        saving,
+      };
+    }
+    return { recommendation: "Plan looks appropriate for your team size.", saving: 0 };
+  },
+
+  figma: (sub) => {
+    if (sub.planName.toLowerCase().includes("organization") && sub.seats <= 5) {
+      const saving = (45 - 15) * sub.seats;
+      return {
+        recommendation: `Figma Organization at $45/seat is expensive for ${sub.seats} users. Figma Professional at $15/seat covers most team needs. Saves $${saving}/month.`,
+        saving,
+      };
+    }
+    return { recommendation: "Plan looks appropriate for your team size.", saving: 0 };
+  },
+
+  linear: (sub) => {
+    if (sub.planName.toLowerCase().includes("business") && sub.seats <= 5) {
+      const saving = (16 - 8) * sub.seats;
+      return {
+        recommendation: `Linear Business at $16/seat for ${sub.seats} users — Linear Basic at $8/seat includes core features for small teams. Saves $${saving}/month.`,
+        saving,
+      };
+    }
+    return { recommendation: "Plan looks appropriate for your team size.", saving: 0 };
+  },
+
+  vercel: (sub) => {
+    if (sub.planName.toLowerCase().includes("pro") && sub.seats <= 2) {
+      const saving = Math.max(sub.monthlyPrice - 20, 0);
+      return {
+        recommendation: `Vercel Pro for ${sub.seats} users — consider consolidating to one Pro account at $20/month. Saves $${saving}/month.`,
+        saving,
+      };
+    }
+    return { recommendation: "Plan looks appropriate for your team size.", saving: 0 };
+  },
+
+  midjourney: (sub) => {
+    if (sub.planName.toLowerCase().includes("mega") && sub.seats <= 2) {
+      const saving = Math.max(sub.monthlyPrice - 60, 0);
+      return {
+        recommendation: `Midjourney Mega at $120/month — Pro plan at $60/month covers most teams. Saves $${saving}/month.`,
+        saving,
       };
     }
     return { recommendation: "Plan looks appropriate for your team size.", saving: 0 };
@@ -85,23 +150,19 @@ const PLAN_RULES: Record<string, (sub: Subscription) => { recommendation: string
 
 export function runAudit(subscriptions: Subscription[]): AuditSummary {
   const results: AuditResult[] = subscriptions.map((sub) => {
-    const key = sub.toolName.toLowerCase().replace(/\s+/g, "_");
+    const key = sub.toolName.toLowerCase().replace(/[\s-]+/g, "_");
     const rule = PLAN_RULES[key];
 
     if (!rule) {
       return {
         ...sub,
-        recommendation: "No specific recommendation available for this tool.",
+        recommendation: "No specific recommendation available for this tool. Review plan tiers on the provider's pricing page.",
         potentialSaving: 0,
       };
     }
 
     const { recommendation, saving } = rule(sub);
-    return {
-      ...sub,
-      recommendation,
-      potentialSaving: saving,
-    };
+    return { ...sub, recommendation, potentialSaving: saving };
   });
 
   const totalMonthlySpend = subscriptions.reduce((sum, s) => sum + s.monthlyPrice, 0);
