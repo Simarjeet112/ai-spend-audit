@@ -101,8 +101,11 @@ export default function ReportView({
       });
   }, [slug]);
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
+  const handleEmailSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget;
+    const honeypot = form.querySelector('input[name="website"]') as HTMLInputElement;
+    if (honeypot?.value) return;
     if (!report || !email) return;
     await captureLead(email, report.id);
     setEmailSent(true);
@@ -241,6 +244,38 @@ export default function ReportView({
           )}
         </div>
 
+        {/* Credex CTA for high savings */}
+        {!loading && report && report.estimatedSavings >= 500 && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+            className="border border-emerald-500/30 bg-emerald-500/5 rounded-xl p-6 mb-8"
+          >
+            <p className="text-xs text-emerald-400 uppercase tracking-widest mb-2">
+              You qualify for Credex savings
+            </p>
+            <h3 className="text-base font-semibold mb-2">
+              Capture even more savings with discounted AI credits
+            </h3>
+            <p className="text-sm text-[#71717a] leading-relaxed mb-4 max-w-xl">
+              Credex sells discounted AI infrastructure credits — Cursor, Claude,
+              ChatGPT Enterprise and others — sourced from companies that
+              overforecast. Your audit shows ${report.estimatedSavings}/month in
+              potential savings. Credex can help you capture even more on top of that.
+            </p>
+            
+              <a href="https://credex.rocks"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black text-sm font-medium px-4 py-2.5 rounded-lg transition-all"
+            >
+              Book a free Credex consultation
+              <ArrowRight className="w-4 h-4" />
+            </a>
+          </motion.div>
+        )}
+
         {/* Comparison toggle */}
         {!loading && report && (
           <ComparisonToggle
@@ -367,6 +402,13 @@ export default function ReportView({
                   We'll send you a permanent link to this audit.
                 </p>
                 <form onSubmit={handleEmailSubmit} className="flex gap-3">
+                  <input
+                    type="text"
+                    name="website"
+                    style={{ display: "none" }}
+                    tabIndex={-1}
+                    autoComplete="off"
+                  />
                   <input
                     type="email"
                     placeholder="you@company.com"
